@@ -1,0 +1,146 @@
+---
+title: "MSDS Practicum II"
+author: "Emma Highland"
+date: "November 2, 2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Import libraries
+
+```{r libs}
+library(plyr)
+library(dplyr)
+library(tidyr)
+library(lattice)
+library(ggplot2)
+library(PerformanceAnalytics)
+```
+
+## Import data
+
+```{r uitem}
+u.item <- read.delim('u.item',header = FALSE,sep = '|')
+colnames(u.item) <- (c('Movie.ID','Movie.Title','Release.Date','Empty',
+                       'IMDb.Link','Unknown','Action','Adventure','Animation',
+                       'Children','Comedy','Crime','Documentary','Drama','Fantasy',
+                       'Film-Noir','Horror','Musical','Mystery','Romance','Sci-Fi',
+                       'Thriller','War','Western'))
+u.item <- subset(u.item,select=-Empty)
+u.item <- subset(u.item,select=-IMDb.Link)
+u.item <- subset(u.item,select=-Unknown)
+```
+
+```{r udata}
+u.data <- read.delim('u.data',header = FALSE,sep = '\t')
+colnames(u.data) <- (c('User.ID','Movie.ID','Rating','Timestamp'))
+u.data <- subset(u.data,select=-Timestamp)
+```
+
+## Movie dataframe
+
+Use a full join on u.data and u.item based on the shared column Movie.ID. Full join will join all columns from both dataframes and will introduce NA values if there's no match.
+
+```{r moviedf}
+movie.df <- full_join(u.data,u.item,"Movie.ID")
+```
+
+I used a full join, so I will check for missing values.
+
+```{r anyna}
+anyNA(movie.df)
+```
+
+All clear! Now I'll check the dimensions of the dataframe.
+
+```{r dimmoviedf}
+dim(movie.df)
+```
+
+I am using the 100k dataset, so these are the expected dimensions. Next, I will output a summary of the dataframe.
+
+```{r summarymoviedf}
+summary(movie.df)
+```
+
+Next, I will create a dataframe with the top ten most prevalent movies in the dataset. The summary above shows that Star Wars is the top movie, as well as the next five most prevalent. Prevalence here indicates how many times the movie has been reviewed.
+
+```{r toptenmovies}
+top.ten <- as.data.frame(head(summary(movie.df$Movie.Title),n=10))
+colnames(top.ten) <- c('Reviews')
+top.ten
+```
+
+I am also curious about the timeline of the movie releases, for example whether there are certain years that are more prevalent in the dataset. This could indicate that a lot of popular (i.e. commonly seen) movies were made in that year, or it could simply indicate there were more movies released that year overall. Just as with top movies, some of this information is available in the summary.
+
+```{r toptendates}
+top.ten2 <- as.data.frame(head(summary(movie.df$Release.Date),n=10))
+colnames(top.ten2) <- c('# movies reviewed from this year')
+top.ten2
+```
+
+A lot of movies from the 1990s appear in the dataset. I am curious what this indicates about the surveyed demographic, particularly in terms of how old the respondents are. This information is available and I think this could be an interesting future direction.
+
+Now, I am going to use a bar chart to see the distribution of the ratings in the data set. I am going to use ggplot for this.
+
+```{r ratingshist}
+ggplot(data=movie.df, aes(movie.df$Rating)) + geom_bar(fill='steelblue') + xlab('ratings')
+```
+
+Most ratings are 3 or 4, and there are few bad ratings in the data set. This is consistent with the mean (3.53) and median (4) for the Rating feature, as shown previously with summary(). Next, I will check what the most prevalent genres in the data set. I will also use ggplot for this.
+
+```{r genrecount}
+genres <- movie.df[6:23]
+genre.count <- as.data.frame(sort(apply(genres,2,sum),decreasing = TRUE))
+colnames(genre.count) <- c('Count')
+genre.count['Genre'] <- labels(genre.count)
+
+ggplot(data=genre.count, aes(x=Genre, y=Count)) +
+  geom_bar(stat="identity", fill="steelblue")+
+  geom_text(aes(label=c(Genre)), vjust=-0.35, size=2.5)+
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+```
+
+Several genres have less than 10,000 movies. The most prevalent by far is Drama, followed by Comedy, then Action. I am going to focus on the more prevalent genres for my analysis, eliminating movies below the 10,000 reviews threshold. As I will discuss in the analysis (in the accompanying Jupyter notebook), I also want to be able to compare my results with the tutorial I will follow rather than follow it exactly.
+
+```{r filtergenre}
+# Filter out genres below 10000
+genres.filter <- select(genres,c('Action','Adventure','Comedy','Drama','Romance','Sci-Fi','Thriller'))
+```
+
+Next, I am going to generate a correlation chart. My suspicion is that most movies are in multiple genres. I am curious to see which genres are most commonly grouped.
+
+```{r correlationchart}
+chart.Correlation(genres.filter)
+```
+
+All genres seem to correlate. The strongest correlation exists between Action and Adventure, followed by Action and Sci-Fi.
+
+Finally, I will create a dataframe with each movie's ID, title, rating, and genre. This dataframe will be limited to the movie's ID, title, rating, and the combination of genres I filtered for above.
+
+```{r findf}
+final.df <- select(movie.df,c('Movie.ID','Movie.Title','Rating',
+                              'Action','Adventure','Comedy',
+                              'Drama','Romance','Sci-Fi','Thriller'))
+```
+
+I will check the dimensions for this final dataframe.
+
+```{r finfdim}
+dim(final.df)
+```
+
+I will check for missing values (there shouldn't be any).
+
+```{r finalna}
+anyNA(final.df)
+```
+ Finally, I will write the file for analysis in Python.
+ 
+```{r writefile}
+write.csv(final.df,file = 'movie_new.csv')
+```
